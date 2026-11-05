@@ -1,0 +1,83 @@
+================================
+PHASE 3: REFACTORING COMPLETE
+================================
+## New Project Structure
+```
+code-smells-project/
+├── app.py                         entry point (`python app.py`)
+├── .env.example                   variáveis de ambiente documentadas
+├── README.md                      atualizado (config + estrutura)
+├── requirements.txt               sem mudanças
+└── src/
+    ├── app.py                     composition root: create_app(), injeção de dependências
+    ├── constants.py               categorias, status, faixas de desconto, versão
+    ├── errors.py                  exceções de domínio
+    ├── config/settings.py         Config: Settings.from_env()
+    ├── database/                  Infra
+    │   ├── connection.py          conexão por request (flask.g) + teardown
+    │   ├── schema.py              CREATE TABLE + FKs + índices
+    │   └── seed.py                seed com hash + migração de senhas legadas
+    ├── models/                    Model: SQL parametrizado, por domínio
+    │   ├── produto_model.py · usuario_model.py · pedido_model.py · sistema_model.py
+    ├── controllers/               Controller: casos de uso e regras
+    │   ├── produto_controller.py · usuario_controller.py · pedido_controller.py
+    │   └── relatorio_controller.py · sistema_controller.py
+    ├── services/notification_service.py
+    ├── views/                     View: Blueprints + validação de entrada
+    │   ├── produto_routes.py · usuario_routes.py · pedido_routes.py
+    │   ├── relatorio_routes.py · sistema_routes.py · validators.py
+    └── middlewares/
+        ├── error_handler.py       formato único {"erro", "sucesso": false}
+        └── auth.py                require_admin_token (X-Admin-Token)
+```
+`controllers.py`, `models.py` e `database.py` foram removidos.
+
+## Findings Addressed
+- **F-01, F-02, F-16** (PB-01/PB-13): segredo, debug, host/porta, CORS e ambiente agora vêm do ambiente. Sem `SECRET_KEY` definida, é gerada uma chave aleatória a cada boot. Debug fica desligado por padrão.
+- **F-03** (PB-09): `/admin/*` exige o header `X-Admin-Token`. `/admin/query` precisa ainda de `ENABLE_ADMIN_QUERY=true`. Sem isso, as duas respondem 403.
+- **F-04** (PB-03): o código foi dividido em camadas, uma pasta por camada e um arquivo por domínio.
+- **F-05** (PB-09/PB-15): a `senha` foi removida de `/usuarios`; `secret_key`, `db_path` e `debug` saíram do `/health`; os logs não registram mais o e-mail.
+- **F-06** (PB-08): senhas viram hash com werkzeug (scrypt), no seed e no cadastro. Um `loja.db` antigo é migrado no boot; testei, e o login com a senha antiga continua funcionando.
+- **F-07** (PB-02): 100% das queries usam `?`. Só nomes fixos de colunas e tabelas são interpolados.
+- **F-08, F-10** (PB-06): uma conexão por request via `flask.g`; models, controllers e rotas recebem as dependências no composition root.
+- **F-09** (PB-04): preço, estoque, desconto e regras de status ficam nos controllers; notificações no `NotificationService`. O cancelamento agora devolve o estoque de verdade.
+- **F-11** (PB-11): a criação de pedido roda numa transação com baixa condicional de estoque (`estoque >= ?`) e rollback. Entraram FKs com `ON DELETE CASCADE` em pedidos e itens.
+- **F-12** (PB-05): os 16 blocos `try/except` foram substituídos por um error handler central. Erros 500 inesperados respondem com mensagem genérica.
+- **F-13** (PB-12): validação centralizada em `validators.py`, usada tanto no create quanto no update, com checagem de tipo e de quantidade > 0, e e-mail único.
+- **F-14** (PB-07): as listagens de pedidos usam um único JOIN; relatório e health fazem uma query cada.
+- **F-15, F-21** (PB-16): serializers únicos por entidade, listagem de pedidos unificada, imports e código morto removidos.
+- **F-17, F-19, F-20** (PB-14): constantes nomeadas, `produto_id`/`usuario_id` no lugar de `id`, condicionais simplificadas.
+- **F-18** (PB-15): `logging` com logger por módulo, configurado no composition root.
+
+## Contract Changes
+1. `GET /usuarios` e `GET /usuarios/<id>` não retornam mais `senha` (segurança).
+2. `GET /health` não retorna mais `secret_key`, `db_path` e `debug`. `ambiente` agora vem de `APP_ENV`.
+3. `/admin/reset-db` e `/admin/query` respondem 403 sem token. `/admin/query` com SQL inválido retorna 400 em vez de 500.
+4. Login com SQL injection (`' OR '1'='1' --`) agora retorna 401. Antes autenticava.
+5. Toda resposta de erro inclui `"sucesso": false`. É só uma chave a mais: o campo `erro` e os status continuam iguais.
+6. Entradas inválidas que davam 500 agora retornam 400: preço em string, body ausente, `preco_min` inválido, quantidade ≤ 0.
+7. Regras novas:
+   - E-mail duplicado retorna 409.
+   - Pedido para usuário inexistente retorna 400.
+   - Status de um pedido inexistente retorna 404 (antes dava 200).
+   - Um pedido cancelado devolve o estoque e não pode voltar a outro status (400).
+8. `PUT /produtos/<id>` aplica as mesmas regras do create: tamanho do nome e categoria válida.
+
+## Validation
+  ✓ Application boots without errors (`python app.py`, 0 tracebacks no log)
+  ✓ All endpoints respond correctly (19/19 endpoints; 34 chamadas comparadas à baseline: 33/34 com o mesmo status HTTP; a única diferença é o login com SQL injection, 200 → 401, intencional; as chaves só mudaram conforme os itens 1, 2 e 5 acima)
+  ✓ Zero anti-patterns remaining. Uma escolha consciente: `CORS_ORIGINS` continua `*` por padrão, para não quebrar clientes existentes, mas agora é configurável por variável de ambiente.
+
+Testes extras que passaram: baixa e devolução de estoque, itens duplicados que excedem o estoque (400), login com hash e migração de banco legado.
+
+## How to Run
+```bash
+pip install -r requirements.txt
+python app.py                                   # http://localhost:5000
+# opcional, para as rotas admin:
+ADMIN_TOKEN=<token> ENABLE_ADMIN_QUERY=true python app.py
+curl -X POST localhost:5000/admin/reset-db -H "X-Admin-Token: <token>"
+```
+================================
+
+O relatório da auditoria está salvo em `reports/audit-project-1.md`. Os testes rodaram num venv temporário, já removido, e nenhum servidor ficou rodando. Nada foi commitado: as alterações ficaram no working tree, incluindo os arquivos legados apagados com `git rm`.
