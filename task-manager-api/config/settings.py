@@ -41,4 +41,3 @@ class Settings:
         self.SMTP_PORT = int(env.get('SMTP_PORT', '587'))
         self.SMTP_USER = env.get('SMTP_USER', '')
         self.SMTP_PASSWORD = env.get('SMTP_PASSWORD', '')
-        self.SMTP_SENDER = env.get('SMTP_SENDER', self.SMTP_USER)

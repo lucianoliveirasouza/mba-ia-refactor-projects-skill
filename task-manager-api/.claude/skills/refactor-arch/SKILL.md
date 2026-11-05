@@ -126,6 +126,8 @@ Aplique as transformações nesta ordem (cada passo deixa o projeto num estado e
 8. **Correções transversais:** segurança (hash de senha, remoção de dados sensíveis das respostas/logs, proteção de endpoints perigosos), APIs deprecated, duplicação, magic numbers, logging, imports não usados.
 9. **Limpeza:** remova arquivos legados que ficaram vazios/obsoletos **somente depois** que os novos módulos estiverem ligados ao entry point. Não deixe código morto.
 
+**Alterações mínimas em arquivos mantidos:** em todo arquivo que permanece no projeto (seeds, services, models, scripts), altere apenas as linhas exigidas por um finding; não reescreva trechos por estilo nem remova funções públicas que não sejam objeto de um finding. Reescrita completa só é aceitável quando o arquivo é desmembrado ou substituído pela nova estrutura MVC.
+
 Se o projeto já tem camadas parciais (ex.: `routes/`, `models/`, `services/`), **evolua** a estrutura existente em vez de recriar do zero: mova regra de negócio das rotas para controllers/services, padronize e corrija — conforme a seção "Projetos parcialmente organizados" do guideline.
 
 Atualize o README do projeto apenas se o modo de executar ou as variáveis de ambiente mudarem — e **somente por acréscimo**: não reescreva nem remova o conteúdo existente (é documentação de terceiros); adicione uma seção nova (ex.: "Notas da refatoração", "Configuração").

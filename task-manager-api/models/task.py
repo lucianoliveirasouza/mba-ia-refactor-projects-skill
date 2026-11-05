@@ -27,19 +27,19 @@ class Task(db.Model):
     # ---- domínio -------------------------------------------------------
 
     def to_dict(self):
-        return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'status': self.status,
-            'priority': self.priority,
-            'user_id': self.user_id,
-            'category_id': self.category_id,
-            'created_at': str(self.created_at),
-            'updated_at': str(self.updated_at),
-            'due_date': str(self.due_date) if self.due_date else None,
-            'tags': self.tags.split(',') if self.tags else [],
-        }
+        data = {}
+        data['id'] = self.id
+        data['title'] = self.title
+        data['description'] = self.description
+        data['status'] = self.status
+        data['priority'] = self.priority
+        data['user_id'] = self.user_id
+        data['category_id'] = self.category_id
+        data['created_at'] = str(self.created_at)
+        data['updated_at'] = str(self.updated_at)
+        data['due_date'] = str(self.due_date) if self.due_date else None
+        data['tags'] = self.tags.split(',') if self.tags else []
+        return data
 
     def is_overdue(self, now=None):
         now = now or utcnow()

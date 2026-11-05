@@ -570,6 +570,7 @@ Cada entrada traz **sinais textuais** (regex para Grep, ex.: `execute\(.*["'] *\
 | `datetime.utcnow()` → `datetime.now(timezone.utc)` quebra comparações com datetimes *naive* gravados no SQLite | Playbook PB-13 recomenda `datetime.now(timezone.utc).replace(tzinfo=None)` para manter compatibilidade. |
 | Execução headless (`claude -p`) e a pausa da Fase 2 | Primeira chamada executa Fases 1–2 e para no `[y/n]`; a resposta é enviada com `claude -p --continue "y"`, retomando a mesma sessão. |
 | Na primeira execução, a Fase 3 reescreveu frases originais dos READMEs dos projetos ao atualizar instruções | Regra do `SKILL.md` ajustada: README só pode ser alterado **por acréscimo** (seção nova), nunca reescrevendo o conteúdo existente; os READMEs foram restaurados mantendo o texto original. |
+| A Fase 3 também reescreveu por estilo arquivos que só precisavam de ajustes pontuais (`task-manager-api/seed.py`, `services/notification_service.py`, `Task.to_dict`) | Arquivos restaurados ao original com apenas as linhas exigidas pelos findings (import da factory, `utcnow()`, credenciais via config, logging); regra de **alterações mínimas em arquivos mantidos** adicionada ao `SKILL.md`; projeto revalidado (22/22 endpoints). |
 | O validador genérico do `skill-creator` rejeitava o campo `argument-hint` | Campo removido do frontmatter (só `name` e `description`), tornando a skill portável; o argumento continua disponível via `$ARGUMENTS`. |
 
 ---
