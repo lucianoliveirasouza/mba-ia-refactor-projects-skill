@@ -10,3 +10,6 @@ venv/
 # SQLite
 *.db
 instance/
+
+# Ferramentas locais (não fazem parte da entrega)
+.claude/skills/skill-creator/

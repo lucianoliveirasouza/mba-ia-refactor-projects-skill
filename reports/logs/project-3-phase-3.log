@@ -1,0 +1,80 @@
+================================
+PHASE 3: REFACTORING COMPLETE
+================================
+
+A refatoração para MVC está concluída. Todos os 22 endpoints respondem como antes; as únicas diferenças são correções de segurança, listadas em *Contract Changes*. Não fiz nenhum commit.
+
+O relatório de auditoria está salvo em `reports/audit-project-3.md`.
+
+**Um ponto de atenção:** a porta 5000 está ocupada por processos de outra sessão (PIDs 12964 e 23560, `scratchpad\venv-p1\...\python.exe app.py`, provavelmente o app de outro projeto). Não os encerrei. Por isso validei com o comando original `python app.py`, mas com `PORT=5055`. Para usar a porta 5000, encerre esses processos.
+
+## New Project Structure
+```
+task-manager-api/
+├── app.py                       # Composition root: create_app() + `python app.py`
+├── .env.example                 # Config: variáveis documentadas
+├── config/settings.py           # Config: env vars com defaults de dev
+├── database.py                  # Infra: instância do SQLAlchemy
+├── models/                      # Model: entidades ORM + todo o acesso a dados
+│   ├── task.py, user.py, category.py
+├── controllers/                 # Controller: casos de uso e regras de negócio
+│   ├── task_controller.py, user_controller.py, category_controller.py, report_controller.py
+├── routes/                      # View: blueprints só com HTTP + serializers
+│   ├── main_routes.py, task_routes.py, user_routes.py, category_routes.py, report_routes.py, serializers.py
+├── validators/                  # View/entrada: validação única por domínio
+│   ├── common.py, task_validator.py, user_validator.py, category_validator.py
+├── middlewares/                 # Transversal
+│   ├── error_handler.py, auth.py
+├── services/notification_service.py   # Integração de email com config injetada
+├── utils/                       # Constantes, exceções de domínio e helpers puros
+│   ├── constants.py, errors.py, helpers.py
+└── seed.py                      # Usa create_app() e grava hashes seguros
+```
+
+## Findings Addressed
+| Finding | O que foi feito |
+|---|---|
+| **F-01** | `SECRET_KEY`, URI do banco e SMTP agora vêm de `config/settings.py` via env, e foi criado o `.env.example` (PB-01). |
+| **F-02** | Debug fica desligado por padrão (`FLASK_DEBUG`); host e porta vêm de env (PB-01). |
+| **F-03** | `User.to_dict()` deixou de incluir o hash da senha (PB-09). |
+| **F-04** | MD5 foi trocado por `werkzeug.security`. O login com as credenciais do seed foi validado (PB-08). |
+| **F-05** | `middlewares/auth.py` exige token de admin em `DELETE /users/<id>`, em `POST /users` com role diferente de `user` e em `PUT /users` que altere `role`. Sem token a resposta é 401; com um não-admin, 403 (PB-09). |
+| **F-06** | App factory `create_app()` injeta `db.session`, o notifier e o auth nos controllers e blueprints. Importar um módulo não toca mais o banco (PB-06). |
+| **F-07** | `CORS(app, origins=settings.CORS_ORIGINS)` (PB-01). |
+| **F-08** | Excluir um usuário remove as tasks dele por cascade do ORM. Excluir uma categoria desvincula as tasks (`category_id = NULL`) no mesmo commit. Testado: a task "Corrigir bug" ficou com `category_id: null` (PB-11). |
+| **F-09** | As regras saíram das rotas e foram para os controllers. Nenhum handler passa de 15 linhas (PB-04). |
+| **F-10** | O token agora é assinado (itsdangerous + `SECRET_KEY`, com expiração) e o campo `token` foi mantido. Um token forjado no formato `fake-jwt-token-1` recebe 401 (PB-09). |
+| **F-11, F-14** | `utcnow()` naive em `utils/helpers.py` e `db.session.get()`/`db.select()`. O log não tem nenhum warning de deprecated/legacy (PB-13). |
+| **F-12** | Contagens com `GROUP BY` e `joinedload` em `GET /tasks`; não há queries dentro de loops (PB-07). |
+| **F-13** | `is_overdue`, `to_dict`, `calculate_percentage` e os serializers ficaram em um lugar só (PB-16). |
+| **F-15** | Error handler central com exceções de domínio, rollback e formato único `{'error': ...}`. Rotas inexistentes devolvem 404 em JSON (PB-05). |
+| **F-16** | Validators únicos. Casos que antes davam 500 agora dão 400: `priority: "abc"`, `?priority=abc` e `PUT /categories` sem body. `priority: "2"` passou a ser aceito (PB-12). |
+| **F-17** | Imports mortos e o `helpers` antigo foram removidos. O `NotificationService` foi ligado à atribuição de tasks, mas só registra em log enquanto `SMTP_HOST` não estiver configurado (PB-16). |
+| **F-18, F-19, F-20** | `utils/constants.py` (`TaskStatus`, `Role`, limites), `isinstance` e expressões booleanas diretas. As rotas de categorias ganharam módulo próprio, com os mesmos caminhos (PB-14). |
+| **F-21** | Os `print` foram trocados por `logging`, configurado no composition root e sem e-mails nos logs (PB-15). |
+
+## Contract Changes
+- **Sem campo `password`:** ele não aparece mais em `GET /users/<id>`, `POST /users`, `PUT /users/<id>` e `POST /login` (`user`). É correção de segurança.
+- **`token` do login é assinado:** ele é opaco e deixou de ser `fake-jwt-token-<id>`.
+- **Três operações exigem token de admin:** `DELETE /users/<id>`, criar usuário com role privilegiada e alterar `role`. Sem token, a resposta é 401; com token de não-admin, 403.
+- **CORS restrito:** o default agora é `localhost:3000`. Use `CORS_ORIGINS=*` para voltar ao comportamento anterior.
+- **Erros de entrada viram 400:** casos que antes davam 500 agora retornam 400 com JSON, e rotas inexistentes retornam 404 em JSON em vez de HTML. A validação de cor (`#RRGGBB`) é nova.
+- **Bancos antigos precisam de novo seed:** um `tasks.db` criado pela versão anterior tem senhas em MD5, e o login com elas falha.
+
+## Validation
+  ✓ A aplicação sobe sem erros (`python app.py`, com `PORT=5055` por causa da porta ocupada; banco recriado com `python seed.py`)
+  ✓ Todos os endpoints respondem corretamente (22/22, 29 checagens): mesmos status e chaves da baseline. As 5 diferenças são todas a remoção de `password`.
+  ✓ Testes extras de segurança e bordas passaram: 401/403 nas rotas protegidas, 400 nas entradas inválidas e integridade ao excluir categoria.
+  ✓ Nenhum anti-pattern restante. O pyflakes passa limpo, e não sobrou SQL fora dos models nem `except:`, `print` (fora da CLI do seed), `utcnow()`, `query.get` ou segredo literal.
+
+Os servidores de teste foram encerrados, e o venv temporário, o `instance/tasks.db` e os `__pycache__` foram removidos.
+
+## How to Run
+```bash
+pip install -r requirements.txt
+cp .env.example .env      # opcional: SECRET_KEY, PORT, CORS_ORIGINS, SMTP_*
+python seed.py
+python app.py             # http://localhost:5000 (ou PORT=...)
+```
+Login de admin do seed: `joao@email.com` / `1234`. Envie o token como `Authorization: Bearer <token>`.
+================================

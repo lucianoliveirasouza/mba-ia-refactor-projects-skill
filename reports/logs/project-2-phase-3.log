@@ -1,0 +1,67 @@
+A refatoração terminou: a app sobe com `npm start` e os 3 endpoints respondem como na baseline, exceto por diferenças intencionais de segurança e integridade, listadas abaixo. O relatório de auditoria foi salvo em `../reports/audit-project-2.md`.
+
+```
+================================
+PHASE 3: REFACTORING COMPLETE
+================================
+## New Project Structure
+ecommerce-api-legacy/
+├── .env.example                      config — variáveis documentadas, sem valores reais
+├── api.http                          exemplos (agora com X-Admin-Token)
+├── package.json                      inalterado ("start": "node src/app.js")
+└── src/
+    ├── app.js                        composition root (createApp + listen)
+    ├── config/index.js               config — process.env + .env opcional
+    ├── constants/index.js            PAYMENT_STATUS, APPROVED_CARD_PREFIX, header admin
+    ├── errors/AppError.js            exceções de domínio (400/401/403/404)
+    ├── database/connection.js        infra — wrapper Promise, transaction() serializada, schema c/ FKs, seed
+    ├── models/                       model — user, course, enrollment, payment, auditLog
+    ├── services/paymentService.js    service — autorização de pagamento, log mascarado
+    ├── controllers/                  controller — checkout, report, user
+    ├── validators/                   validação de entrada (checkout, id)
+    ├── routes/                       view — checkoutRoutes, adminRoutes, userRoutes
+    ├── middlewares/                  asyncHandler, errorHandler, auth (requireAdmin)
+    └── utils/                        logger.js, password.js (scrypt)
+
+## Findings Addressed
+F-01 God Class → AppManager quebrado em config/database/models/services/controllers/routes (PB-03)
+F-02 Senha → scrypt com salt; seed hasheado; senha padrão "123456" removida (PB-08)
+F-03 Log sensível → só os últimos 4 dígitos do cartão; a chave nunca é logada (PB-15)
+F-04 Endpoints abertos → middleware requireAdmin com ADMIN_TOKEN e comparação timing-safe (PB-09)
+F-05 Credenciais → config via env, .env.example; credenciais mortas removidas (PB-01)
+F-06 Acoplamento → factories com DI montadas no composition root (PB-06)
+F-07 Transação/integridade → checkout em BEGIN/COMMIT/ROLLBACK; FKs com ON DELETE CASCADE; e-mail UNIQUE (PB-11)
+F-08 Fat Controller → regra nos controllers/service, rotas com 2–3 linhas (PB-04)
+F-09 Callback hell → async/await + asyncHandler → error handler (PB-10)
+F-10 Estado global → globalCache/totalRevenue removidos (PB-06)
+F-11 Validação → validators com tipo/inteiro positivo; card numérico não derruba mais o processo (PB-12)
+F-12 Error handling → middleware central, mantendo respostas em texto puro (PB-05)
+F-13 Deprecated → wrapper Promise, sem .verbose() (PB-13)
+F-14/F-15 N+1/duplicação → uma query com LEFT JOIN + agregação no controller (PB-07/16)
+F-16–F-19 → código morto removido, nomes claros (mapeia usr/eml/pwd/c_id/card na borda), constantes, logger com níveis
+
+## Contract Changes
+1. GET /api/admin/financial-report e DELETE /api/users/:id exigem o header X-Admin-Token: sem ele → 401, token errado (ou ADMIN_TOKEN vazio) → 403.
+2. DELETE /api/users/:id: o texto virou "Usuário deletado" (antes admitia dados sujos); id inexistente → 404 e id inválido → 400 (antes sempre 200).
+3. Usuário apagado leva junto suas matrículas e pagamentos, então some do relatório (antes aparecia como "Unknown" e contava receita).
+4. Checkout de usuário novo sem `pwd` → 400 "Senha obrigatória para novo usuário" (antes criava a conta com a senha "123456").
+5. Pagamento recusado não cria mais o usuário (antes ficava um usuário órfão). JSON malformado ou card numérico → 400 em vez de erro ou queda do processo.
+6. A ordem dos cursos no relatório agora é fixa (por id); antes dependia da ordem dos callbacks.
+7. E-mail passa por trim + lowercase antes da busca e da gravação: lookup não diferencia mais maiúsculas.
+
+## Validation
+  ✓ Application boots without errors (`npm start`, node --check em todos os arquivos)
+  ✓ All endpoints respond correctly (3/3 endpoints, 9 chamadas vs. baseline: 7 idênticas e 2 diferenças intencionais, itens 2–3 acima; testes extras de 401/403/404/400 e card numérico OK)
+  ✓ Zero anti-patterns remaining (re-grep: sem segredos, sem SQL interpolado, sem SQL fora de models/database, sem console.log, sem estado global, sem literais de status fora de constants)
+
+## How to Run
+npm install
+ADMIN_TOKEN=dev-admin-token npm start      # ou copie .env.example → .env
+# Variáveis: PORT, DB_PATH, PAYMENT_GATEWAY_KEY, ADMIN_TOKEN, LOG_LEVEL
+================================
+```
+
+Observações:
+- Não fiz commit. `src/AppManager.js` e `src/utils.js` foram removidos com `git rm`, então essas remoções já estão no stage; os arquivos novos estão como untracked.
+- Atualizei o README e o `api.http` para documentar `ADMIN_TOKEN` e o header `X-Admin-Token`.
+- O `.env` é carregado com `process.loadEnvFile`, que exige Node 20.12 ou mais novo. Em versões antigas o `.env` é ignorado, mas as variáveis de ambiente continuam funcionando.
