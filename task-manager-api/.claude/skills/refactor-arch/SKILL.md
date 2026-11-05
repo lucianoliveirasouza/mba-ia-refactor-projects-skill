@@ -128,7 +128,7 @@ Aplique as transformações nesta ordem (cada passo deixa o projeto num estado e
 
 Se o projeto já tem camadas parciais (ex.: `routes/`, `models/`, `services/`), **evolua** a estrutura existente em vez de recriar do zero: mova regra de negócio das rotas para controllers/services, padronize e corrija — conforme a seção "Projetos parcialmente organizados" do guideline.
 
-Atualize o README do projeto apenas se o modo de executar ou as variáveis de ambiente mudarem.
+Atualize o README do projeto apenas se o modo de executar ou as variáveis de ambiente mudarem — e **somente por acréscimo**: não reescreva nem remova o conteúdo existente (é documentação de terceiros); adicione uma seção nova (ex.: "Notas da refatoração", "Configuração").
 
 ### 3.3 Validação (obrigatória)
 

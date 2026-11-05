@@ -1,21 +1,26 @@
 # task-manager-api
 
-API de Task Manager em Python/Flask usada como entrada do desafio `refactor-arch`, já refatorada para MVC.
+API de Task Manager em Python/Flask usada como entrada do desafio `refactor-arch`. Diferente dos outros projetos, este já possui alguma separação de camadas (`models/`, `routes/`, `services/`, `utils/`), mas ainda contém problemas arquiteturais e de qualidade.
 
 ## Como rodar
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # opcional: ajuste SECRET_KEY, PORT, CORS_ORIGINS, SMTP_*
 python seed.py
 python app.py
 ```
 
-A aplicação sobe em `http://localhost:5000` (porta configurável via `PORT`). O `seed.py` recria o banco SQLite (`instance/tasks.db`) com usuários, categorias e tasks de exemplo — **rode-o antes do primeiro boot** (e novamente se o banco foi criado pela versão anterior, que gravava senhas em MD5).
+A aplicação sobe em `http://localhost:5000`. O `seed.py` popula o banco SQLite (`tasks.db`) com usuários, categorias e tasks de exemplo — **rode-o antes do primeiro boot**, caso contrário os endpoints vão retornar listas vazias.
+
+## Notas da refatoração (refactor-arch)
+
+- O projeto foi refatorado para MVC (ver *Estrutura* abaixo).
+- A porta é configurável via `PORT`. O banco fica em `instance/tasks.db` (padrão do Flask-SQLAlchemy para URIs SQLite relativas).
+- As senhas agora são gravadas com hash seguro. Se o banco foi criado pela versão anterior (senhas em MD5), rode `python seed.py` novamente.
 
 ## Configuração
 
-Todas as variáveis estão documentadas em `.env.example`. As principais:
+Todas as variáveis estão documentadas em `.env.example` (opcional: `cp .env.example .env` e ajuste `SECRET_KEY`, `PORT`, `CORS_ORIGINS`, `SMTP_*`). As principais:
 
 | Variável | Default (dev) | Uso |
 |---|---|---|

@@ -9,7 +9,11 @@ pip install -r requirements.txt
 python app.py
 ```
 
-A aplicação sobe em `http://localhost:5000`. O banco SQLite (`loja.db`) é criado automaticamente no primeiro boot, já com produtos e usuários de exemplo (senhas gravadas como hash). Bancos criados pela versão anterior, com senhas em texto puro, são migrados para hash automaticamente no boot.
+A aplicação sobe em `http://localhost:5000`. O banco SQLite (`loja.db`) é criado automaticamente no primeiro boot, já com produtos e usuários de exemplo.
+
+## Notas da refatoração (refactor-arch)
+
+- As senhas dos usuários de exemplo agora são gravadas como hash. Bancos `loja.db` criados pela versão anterior, com senhas em texto puro, são migrados para hash automaticamente no boot.
 
 ## Configuração
 
